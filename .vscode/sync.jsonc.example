@@ -1,0 +1,52 @@
+// DogSync config (JSONC). Each root key is a connection name.
+// The first connection in file order is the default (upload on save, etc.).
+// Auth: sshPasswordAuthentication false (default) = key at privateKeyPath.
+// If true: leave privateKeyPath empty and use "DogSync: Definir palavra-passe SSH" (password is not stored here).
+// Portuguese keys (servidor, utilizador, ...) are still accepted as fallback.
+{
+  "Production": [
+    {
+      "host": "example.com",
+      "port": 22,
+      "username": "deploy",
+      "sshPasswordAuthentication": false,
+      "privateKeyPath": "C:\\Users\\YOUR_USER\\.ssh\\id_ed25519",
+      "useSshAgent": false,
+      "strictHostKeyChecking": false,
+      "knownHostsPath": "",
+      "remoteRoot": "/var/www/html/app",
+      "localSubfolder": "",
+      "uploadOnSave": true,
+      "ignorePatterns": [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/.vscode/**",
+        "**/.cursor/**",
+        "**/*.md",
+        "**/.env",
+        "**/.env.*"
+      ]
+    }
+  ],
+  "Tests": [
+    {
+      "host": "",
+      "port": 22,
+      "username": "",
+      "sshPasswordAuthentication": false,
+      "privateKeyPath": "",
+      "remoteRoot": "",
+      "localSubfolder": "",
+      "uploadOnSave": true,
+      "ignorePatterns": [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/.vscode/**",
+        "**/.cursor/**",
+        "**/*.md",
+        "**/.env",
+        "**/.env.*"
+      ]
+    }
+  ]
+}

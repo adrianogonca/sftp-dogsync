@@ -1,0 +1,19 @@
+node_modules/
+out/
+*.vsix
+.DS_Store
+
+# .vscode: só exemplos e ficheiros de dev da extensão entram no repo
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/*.example
+
+.env
+.env.*
+
+# artefactos de build / teste
+vitest.config.js
+vitest.config.js.map
+test/**/*.js
+test/**/*.js.map

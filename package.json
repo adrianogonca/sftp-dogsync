@@ -1,0 +1,245 @@
+{
+  "name": "sftp-sync-vps",
+  "displayName": "DogSync",
+  "description": "SFTP (SSH) and FTP/FTPS sync for VS Code and Cursor — upload on save, ignores, path mapping, and manual download.",
+  "version": "0.5.0",
+  "publisher": "adrianogonca",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adrianogonca/sftp-dogsync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/adrianogonca/sftp-dogsync/issues"
+  },
+  "homepage": "https://github.com/adrianogonca/sftp-dogsync#readme",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:.vscode/sync.jsonc",
+    "workspaceContains:.vscode/sync.json",
+    "onView:sftpSync.mainPanel",
+    "onCommand:sftpSync.reloadEditorWindow",
+    "onCommand:sftpSync.addConnection",
+    "onCommand:sftpSync.openSyncJson",
+    "onCommand:sftpSync.testConnection",
+    "onCommand:sftpSync.setPrivateKeyPassphrase",
+    "onCommand:sftpSync.setSshPassword",
+    "onCommand:sftpSync.setFtpPassword",
+    "onCommand:sftpSync.uploadCurrentFile",
+    "onCommand:sftpSync.uploadPath",
+    "onCommand:sftpSync.downloadPath",
+    "onCommand:sftpSync.openPasswordVault"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": ".vscode/sync.jsonc",
+        "url": "./schemas/sync.jsonc.schema.json"
+      }
+    ],
+    "configuration": {
+      "title": "DogSync",
+      "properties": {
+        "sftpSync.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "Enables or disables the extension in this workspace. Connection data belongs in .vscode/sync.jsonc."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "sftpSync.testConnection",
+        "title": "DogSync: Testar ligação"
+      },
+      {
+        "command": "sftpSync.setPrivateKeyPassphrase",
+        "title": "DogSync: Definir palavra-passe da chave privada"
+      },
+      {
+        "command": "sftpSync.setSshPassword",
+        "title": "DogSync: Definir palavra-passe SSH (utilizador+senha)"
+      },
+      {
+        "command": "sftpSync.setFtpPassword",
+        "title": "DogSync: Definir palavra-passe FTP (conta FTP)"
+      },
+      {
+        "command": "sftpSync.uploadCurrentFile",
+        "title": "DogSync: Enviar ficheiro atual"
+      },
+      {
+        "command": "sftpSync.uploadPath",
+        "title": "DogSync: Enviar para o servidor"
+      },
+      {
+        "command": "sftpSync.downloadPath",
+        "title": "DogSync: Descarregar do servidor (substituir local)"
+      },
+      {
+        "command": "sftpSync.reloadEditorWindow",
+        "title": "DogSync: Recarregar janela do editor"
+      },
+      {
+        "command": "sftpSync.showLog",
+        "title": "DogSync: Mostrar registo"
+      },
+      {
+        "command": "sftpSync.addConnection",
+        "title": "DogSync: Adicionar conexão"
+      },
+      {
+        "command": "sftpSync.openSyncJson",
+        "title": "DogSync: Abrir .vscode/sync.jsonc"
+      },
+      {
+        "command": "sftpSync.openPasswordVault",
+        "title": "DogSync: Cofre de senha (gerir por conexão)"
+      },
+      {
+        "command": "sftpSync.setVaultPasswordFromTree",
+        "title": "DogSync: Cofre — definir senha (linha da árvore)"
+      },
+      {
+        "command": "sftpSync.removeVaultPasswordFromTree",
+        "title": "DogSync: Cofre — remover senha (linha da árvore)"
+      },
+      {
+        "command": "sftpSync.setDefaultConnection",
+        "title": "DogSync: Colocar conexão em primeiro (padrão no sync.jsonc)"
+      },
+      {
+        "command": "sftpSync.openSyncJsonAtConnection",
+        "title": "DogSync: Editar em sync.jsonc"
+      },
+      {
+        "command": "sftpSync.removeConnectionFromSyncJsonc",
+        "title": "DogSync: Remover conexão do sync.jsonc"
+      },
+      {
+        "command": "sftpSync.openRemoteInEditor",
+        "title": "DogSync: Abrir remoto no editor"
+      },
+      {
+        "command": "sftpSync.deleteRemote",
+        "title": "DogSync: Eliminar no servidor"
+      },
+      {
+        "command": "sftpSync.downloadRemoteFromPanel",
+        "title": "DogSync: Descarregar do servidor (substituir local)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "sftpSync.uploadPath",
+          "group": "sftpSync@1",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "sftpSync.downloadPath",
+          "group": "sftpSync@2",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sftpSync.setDefaultConnection",
+          "when": "view == sftpSync.mainPanel && viewItem == connection",
+          "group": "1_modification"
+        },
+        {
+          "command": "sftpSync.openSyncJsonAtConnection",
+          "when": "view == sftpSync.mainPanel && viewItem == connection",
+          "group": "2_workspace@1"
+        },
+        {
+          "command": "sftpSync.removeConnectionFromSyncJsonc",
+          "when": "view == sftpSync.mainPanel && viewItem == connection",
+          "group": "2_workspace@2"
+        },
+        {
+          "command": "sftpSync.removeVaultPasswordFromTree",
+          "when": "view == sftpSync.mainPanel && viewItem == vault-connection",
+          "group": "9_modification"
+        },
+        {
+          "command": "sftpSync.openRemoteInEditor",
+          "when": "view == sftpSync.mainPanel && viewItem == remote-file",
+          "group": "1_open"
+        },
+        {
+          "command": "sftpSync.downloadRemoteFromPanel",
+          "when": "view == sftpSync.mainPanel && (viewItem == remote-file || viewItem == remote-dir)",
+          "group": "2_workspace"
+        },
+        {
+          "command": "sftpSync.deleteRemote",
+          "when": "view == sftpSync.mainPanel && (viewItem == remote-file || viewItem == remote-dir)",
+          "group": "9_modification"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sftpSyncBar",
+          "title": "DogSync",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "sftpSyncBar": [
+        {
+          "id": "sftpSync.mainPanel",
+          "name": "DogSync",
+          "type": "tree"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "sftpSync.uploadCurrentFile",
+        "key": "ctrl+alt+u",
+        "mac": "cmd+alt+u",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "sftpSync.downloadPath",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "editorTextFocus && resourceScheme == file"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compilar",
+    "compilar": "tsc -p ./",
+    "testar": "vitest run",
+    "preparar": "npm run compilar",
+    "empacotar": "npm run compilar && vsce package --no-rewrite-relative-links --allow-missing-repository",
+    "vigiar": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ssh2": "^1.15.5",
+    "@types/vscode": "^1.74.0",
+    "@vscode/vsce": "^3.7.1",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.3.0",
+    "jsonc-parser": "^3.3.1",
+    "minimatch": "^9.0.3",
+    "ssh2": "^1.15.0"
+  }
+}
