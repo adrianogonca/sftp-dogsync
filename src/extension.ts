@@ -586,9 +586,7 @@ function activateExtension(context: vscode.ExtensionContext): void {
           );
           return;
         }
-        for (const target of targets) {
-          await runPathUpload(context, target);
-        }
+        await runPathUploadBatch(context, targets);
       }
     )
   );
@@ -1004,23 +1002,166 @@ function resolveExplorerFileUris(
   return collected;
 }
 
+async function classifyUploadTargets(
+  targets: readonly vscode.Uri[]
+): Promise<{
+  ready: Array<{ uri: vscode.Uri; forceIgnoreBypass: boolean }>;
+  ignoredCount: number;
+  skippedInvalid: number;
+}> {
+  const ready: Array<{ uri: vscode.Uri; forceIgnoreBypass: boolean }> = [];
+  let ignoredCount = 0;
+  let skippedInvalid = 0;
+
+  for (const uri of targets) {
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+    if (!workspaceFolder) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const configuration = readConfiguration(workspaceFolder);
+    if (!configuration.enabled || !isMinimumConfigurationFilled(configuration)) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const raizLocal = resolveAbsoluteLocalRoot(workspaceFolder, configuration);
+    const relative = posixRelativePath(uri.fsPath, raizLocal);
+    if (relative === undefined) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const matchesIgnore = shouldIgnorePath(
+      relative,
+      configuration.ignorePatterns
+    );
+    if (matchesIgnore) {
+      ignoredCount += 1;
+    }
+    ready.push({ uri, forceIgnoreBypass: matchesIgnore });
+  }
+
+  return { ready, ignoredCount, skippedInvalid };
+}
+
+async function runPathUploadBatch(
+  context: vscode.ExtensionContext,
+  targets: readonly vscode.Uri[]
+): Promise<void> {
+  const { ready, ignoredCount, skippedInvalid } =
+    await classifyUploadTargets(targets);
+
+  if (ready.length === 0) {
+    vscode.window.showErrorMessage(
+      skippedInvalid > 0
+        ? "Nenhum caminho válido para enviar (fora do workspace, config incompleta ou fora da raiz local)."
+        : "Nada para enviar."
+    );
+    return;
+  }
+
+  let includeIgnored = false;
+  if (ignoredCount > 0) {
+    const nonIgnoredCount = ready.length - ignoredCount;
+    if (nonIgnoredCount > 0) {
+      const choice = await vscode.window.showWarningMessage(
+        `${ignoredCount} de ${ready.length} estão em ignorePatterns.`,
+        { modal: true },
+        "Enviar todos",
+        "Só não ignorados",
+        "Cancelar"
+      );
+      if (choice === undefined || choice === "Cancelar") {
+        logLine(
+          `Envio em lote cancelado (${ignoredCount} em ignorePatterns).`
+        );
+        return;
+      }
+      includeIgnored = choice === "Enviar todos";
+    } else {
+      const choice = await vscode.window.showWarningMessage(
+        ready.length === 1
+          ? `"${path.basename(ready[0]!.uri.fsPath)}" está em ignorePatterns. Enviar mesmo assim?`
+          : `${ignoredCount} itens estão em ignorePatterns. Enviar mesmo assim?`,
+        { modal: true },
+        "Enviar",
+        "Cancelar"
+      );
+      if (choice !== "Enviar") {
+        logLine(
+          `Envio em lote cancelado (${ignoredCount} em ignorePatterns).`
+        );
+        return;
+      }
+      includeIgnored = true;
+    }
+  }
+
+  const toUpload = ready.filter(
+    (item) => includeIgnored || !item.forceIgnoreBypass
+  );
+  if (toUpload.length === 0) {
+    logLine("Envio em lote: nada a enviar após filtro ignorePatterns.");
+    return;
+  }
+
+  let successCount = 0;
+  let lastConnectionName = "";
+  let lastRemote = "";
+  for (const item of toUpload) {
+    const ok = await runPathUpload(
+      context,
+      item.uri,
+      item.forceIgnoreBypass && includeIgnored,
+      { silentSuccess: true }
+    );
+    if (ok) {
+      successCount += 1;
+      const folder = vscode.workspace.getWorkspaceFolder(item.uri);
+      if (folder) {
+        const cfg = readConfiguration(folder);
+        const raiz = resolveAbsoluteLocalRoot(folder, cfg);
+        const rel = posixRelativePath(item.uri.fsPath, raiz);
+        if (rel !== undefined) {
+          lastConnectionName = cfg.connectionName;
+          lastRemote = joinRemote(cfg.remoteRoot, rel);
+        }
+      }
+    }
+  }
+
+  if (successCount === 0) {
+    return;
+  }
+  if (successCount === 1) {
+    vscode.window.showInformationMessage(
+      `Enviado para "${lastConnectionName}": ${lastRemote}`
+    );
+    return;
+  }
+  vscode.window.showInformationMessage(
+    `Enviados ${successCount} itens para o servidor.`
+  );
+}
+
 async function runPathUpload(
   context: vscode.ExtensionContext,
-  localUri: vscode.Uri
-): Promise<void> {
+  localUri: vscode.Uri,
+  forceIgnoreBypass = false,
+  options?: { silentSuccess?: boolean }
+): Promise<boolean> {
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(localUri);
   if (!workspaceFolder) {
     vscode.window.showErrorMessage(
       "O caminho tem de pertencer a uma pasta do espaço de trabalho."
     );
-    return;
+    return false;
   }
   const configuration = readConfiguration(workspaceFolder);
   if (!configuration.enabled || !isMinimumConfigurationFilled(configuration)) {
     vscode.window.showErrorMessage(
       "Configure a ligação antes de enviar ficheiros."
     );
-    return;
+    return false;
   }
   const raizLocal = resolveAbsoluteLocalRoot(workspaceFolder, configuration);
   const caminhoLocal = localUri.fsPath;
@@ -1029,13 +1170,18 @@ async function runPathUpload(
     vscode.window.showErrorMessage(
       "O caminho selecionado está fora da raiz local configurada."
     );
-    return;
+    return false;
   }
-  if (shouldIgnorePath(relative, configuration.ignorePatterns)) {
-    const msg = `Ignorado pelo ignorePatterns: ${relative}`;
-    logLine(msg);
-    vscode.window.showWarningMessage(msg);
-    return;
+  const matchesIgnore = shouldIgnorePath(
+    relative,
+    configuration.ignorePatterns
+  );
+  if (matchesIgnore && !forceIgnoreBypass) {
+    logLine(`Ignorado pelo ignorePatterns (lote): ${relative}`);
+    return false;
+  }
+  if (matchesIgnore && forceIgnoreBypass) {
+    logLine(`Envio forçado apesar de ignorePatterns: ${relative}`);
   }
   const remoto = joinRemote(configuration.remoteRoot, relative);
   setStatus(
@@ -1053,7 +1199,10 @@ async function runPathUpload(
       caminhoLocal,
       remoto,
       raizLocal,
-      (relPosix) => shouldIgnorePath(relPosix, configuration.ignorePatterns)
+      (relPosix) =>
+        matchesIgnore && forceIgnoreBypass
+          ? false
+          : shouldIgnorePath(relPosix, configuration.ignorePatterns)
     );
     logLine(
       `Envio (explorador) [${configuration.connectionName}]: ${caminhoLocal} -> ${remoto}`
@@ -1062,15 +1211,19 @@ async function runPathUpload(
       "ready",
       `Último envio: ${configuration.connectionName} — ${path.basename(caminhoLocal)}`
     );
-    vscode.window.showInformationMessage(
-      `Enviado para "${configuration.connectionName}": ${remoto}`
-    );
+    if (!options?.silentSuccess) {
+      vscode.window.showInformationMessage(
+        `Enviado para "${configuration.connectionName}": ${remoto}`
+      );
+    }
+    return true;
   } catch (error) {
     logError("Falha no envio (explorador)", error);
     setStatus("error", "Falha no envio; clique para o registo.");
     vscode.window.showErrorMessage(
       "Falha ao enviar. Veja o registo DogSync."
     );
+    return false;
   }
 }
 
