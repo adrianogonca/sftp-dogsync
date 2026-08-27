@@ -15,6 +15,7 @@ import {
 import type { FtpConnectionOptions } from "./remoteConnectionTypes";
 import { logLine } from "./logger";
 import { withPooledFtp } from "./connectionPool";
+import { uploadLocalFileViaFtpClient } from "./ftpUploadHelpers";
 
 const PREVIEW_TAIL_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -71,10 +72,12 @@ export async function uploadLocalFileToRemoteFtp(
   remotePosixPath: string
 ): Promise<void> {
   return withPooledFtp(poolKey, options, async (client) => {
-    const remoteDirectory = path.posix.dirname(remotePosixPath);
-    await client.ensureDir(remoteDirectory);
-    await client.uploadFrom(caminhoLocal, remotePosixPath);
-    logLine(`Enviado (FTP): ${caminhoLocal} -> ${remotePosixPath}`);
+    if (options.ftpSecurityMode === "plainFtp") {
+      logLine(
+        "[DogSync FTP] Aviso: ligação em claro (sem TLS). Credenciais e dados transitam sem encriptação."
+      );
+    }
+    await uploadLocalFileViaFtpClient(client, caminhoLocal, remotePosixPath);
   });
 }
 
@@ -104,10 +107,7 @@ async function uploadFolderRecursiveWithFilterFtp(
       if (relative === undefined || shouldIgnoreRelative(relative)) {
         continue;
       }
-      const remoteParentDir = path.posix.dirname(childRemote);
-      await client.ensureDir(remoteParentDir);
-      await client.uploadFrom(childLocal, childRemote);
-      logLine(`Enviado (FTP): ${childLocal} -> ${childRemote}`);
+      await uploadLocalFileViaFtpClient(client, childLocal, childRemote);
     }
   }
 }
@@ -140,11 +140,10 @@ export async function uploadLocalPathToRemoteRecursiveFtp(
       if (relative === undefined || shouldIgnoreRelative(relative)) {
         return;
       }
-      const parentDir = path.posix.dirname(destinationRemotePosixPath);
-      await client.ensureDir(parentDir);
-      await client.uploadFrom(absoluteLocalPath, destinationRemotePosixPath);
-      logLine(
-        `Enviado (FTP): ${absoluteLocalPath} -> ${destinationRemotePosixPath}`
+      await uploadLocalFileViaFtpClient(
+        client,
+        absoluteLocalPath,
+        destinationRemotePosixPath
       );
     }
   });

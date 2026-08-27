@@ -562,12 +562,9 @@ function activateExtension(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "sftpSync.downloadPath",
-      async (receivedUri?: vscode.Uri) => {
-        const target =
-          receivedUri ??
-          vscode.window.activeTextEditor?.document.uri ??
-          undefined;
-        if (!target || target.scheme !== "file") {
+      async (receivedUri?: unknown, selectedUris?: unknown) => {
+        const target = resolveExplorerFileUri(receivedUri, selectedUris);
+        if (!target) {
           vscode.window.showWarningMessage(
             "Selecione um ficheiro ou pasta no explorador, ou abra um ficheiro no editor."
           );
@@ -581,18 +578,17 @@ function activateExtension(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "sftpSync.uploadPath",
-      async (receivedUri?: vscode.Uri) => {
-        const target =
-          receivedUri ??
-          vscode.window.activeTextEditor?.document.uri ??
-          undefined;
-        if (!target || target.scheme !== "file") {
+      async (receivedUri?: unknown, selectedUris?: unknown) => {
+        const targets = resolveExplorerFileUris(receivedUri, selectedUris);
+        if (targets.length === 0) {
           vscode.window.showWarningMessage(
             "Selecione um ficheiro ou pasta no explorador, ou abra um ficheiro no editor."
           );
           return;
         }
-        await runPathUpload(context, target);
+        for (const target of targets) {
+          await runPathUpload(context, target);
+        }
       }
     )
   );
@@ -932,6 +928,82 @@ async function runDocumentUpload(
   await doUpload();
 }
 
+function coerceFileUri(value: unknown): vscode.Uri | undefined {
+  if (value instanceof vscode.Uri) {
+    return value.scheme === "file" ? value : undefined;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    return vscode.Uri.file(value);
+  }
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as {
+    scheme?: string;
+    fsPath?: string;
+    path?: string;
+  };
+  if (record.scheme !== undefined && record.scheme !== "file") {
+    return undefined;
+  }
+  if (typeof record.fsPath === "string" && record.fsPath.length > 0) {
+    return vscode.Uri.file(record.fsPath);
+  }
+  if (typeof record.path === "string" && record.path.length > 0) {
+    const raw = record.path;
+    if (/^[a-zA-Z]:[\\/]/.test(raw) || raw.startsWith("\\\\")) {
+      return vscode.Uri.file(raw);
+    }
+    return vscode.Uri.file(raw.startsWith("/") ? raw : `/${raw}`);
+  }
+  return undefined;
+}
+
+function resolveExplorerFileUri(
+  first?: unknown,
+  second?: unknown
+): vscode.Uri | undefined {
+  const list = resolveExplorerFileUris(first, second);
+  return list[0];
+}
+
+function resolveExplorerFileUris(
+  first?: unknown,
+  second?: unknown
+): vscode.Uri[] {
+  const collected: vscode.Uri[] = [];
+  const pushUnique = (uri: vscode.Uri | undefined): void => {
+    if (!uri) {
+      return;
+    }
+    if (collected.some((item) => item.fsPath === uri.fsPath)) {
+      return;
+    }
+    collected.push(uri);
+  };
+
+  if (Array.isArray(second)) {
+    for (const item of second) {
+      pushUnique(coerceFileUri(item));
+    }
+  }
+  if (collected.length === 0 && Array.isArray(first)) {
+    for (const item of first) {
+      pushUnique(coerceFileUri(item));
+    }
+  }
+  if (collected.length === 0) {
+    pushUnique(coerceFileUri(first));
+  }
+  if (collected.length === 0) {
+    const active = vscode.window.activeTextEditor?.document.uri;
+    if (active?.scheme === "file") {
+      pushUnique(active);
+    }
+  }
+  return collected;
+}
+
 async function runPathUpload(
   context: vscode.ExtensionContext,
   localUri: vscode.Uri
@@ -959,8 +1031,17 @@ async function runPathUpload(
     );
     return;
   }
+  if (shouldIgnorePath(relative, configuration.ignorePatterns)) {
+    const msg = `Ignorado pelo ignorePatterns: ${relative}`;
+    logLine(msg);
+    vscode.window.showWarningMessage(msg);
+    return;
+  }
   const remoto = joinRemote(configuration.remoteRoot, relative);
-  setStatus("syncing", "A enviar para o servidor…");
+  setStatus(
+    "syncing",
+    `A enviar → ${configuration.connectionName}: ${remoto}`
+  );
   try {
     const connection = await buildRemoteConnection(
       context,
@@ -974,8 +1055,16 @@ async function runPathUpload(
       raizLocal,
       (relPosix) => shouldIgnorePath(relPosix, configuration.ignorePatterns)
     );
-    setStatus("ready", "Último envio concluído.");
-    vscode.window.showInformationMessage("Envio para o servidor concluído.");
+    logLine(
+      `Envio (explorador) [${configuration.connectionName}]: ${caminhoLocal} -> ${remoto}`
+    );
+    setStatus(
+      "ready",
+      `Último envio: ${configuration.connectionName} — ${path.basename(caminhoLocal)}`
+    );
+    vscode.window.showInformationMessage(
+      `Enviado para "${configuration.connectionName}": ${remoto}`
+    );
   } catch (error) {
     logError("Falha no envio (explorador)", error);
     setStatus("error", "Falha no envio; clique para o registo.");

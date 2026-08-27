@@ -75,10 +75,16 @@ export function joinRemote(
   remoteRootPosix: string,
   posixRelative: string
 ): string {
-  const base = remoteRootPosix.replace(/\/+$/, "");
-  const resto = posixRelative.replace(/^\/+/, "");
+  const resto = posixRelative.replace(/\\/g, "/").replace(/^\/+/, "");
+  let base = remoteRootPosix.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (base === "/") {
+    base = "";
+  }
   if (resto.length === 0) {
-    return base;
+    return base.length === 0 ? "/" : base;
+  }
+  if (base.length === 0) {
+    return `/${resto}`;
   }
   return `${base}/${resto}`;
 }

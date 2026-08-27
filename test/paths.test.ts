@@ -34,6 +34,11 @@ describe("joinRemote", () => {
   it("junta raiz com segmento relativo", () => {
     expect(joinRemote("/var/www", "app/index.php")).toBe("/var/www/app/index.php");
   });
+
+  it("trata raiz POSIX / sem duplicar barras", () => {
+    expect(joinRemote("/", "index.php")).toBe("/index.php");
+    expect(joinRemote("", "index.php")).toBe("/index.php");
+  });
 });
 
 describe("posixRelativePath", () => {
