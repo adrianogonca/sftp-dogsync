@@ -1,4 +1,5 @@
 import * as fs from "fs/promises";
+import * as fsSync from "fs";
 import * as os from "os";
 import * as path from "path";
 import { createHash } from "crypto";
@@ -580,17 +581,27 @@ export class SyncTreeProvider
     const absolutePath = syncJsonAbsolutePath(folder);
     const uri = vscode.Uri.file(absolutePath);
     try {
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const text = doc.getText();
-      const indice = text.indexOf(`"${connectionName}"`);
-      const posicao =
-        indice >= 0 ? doc.positionAt(indice) : new vscode.Position(0, 0);
-      await vscode.window.showTextDocument(doc, {
-        viewColumn: vscode.ViewColumn.Active,
-        selection: new vscode.Range(posicao, posicao),
-        preview: false,
-        preserveFocus: false,
-      });
+      if (!fsSync.existsSync(absolutePath)) {
+        await openSyncJsonFileInEditor(folder);
+        return;
+      }
+      let lineNumber = 0;
+      try {
+        const text = fsSync.readFileSync(absolutePath, "utf8");
+        const indice = text.indexOf(`"${connectionName}"`);
+        if (indice >= 0) {
+          lineNumber = text.slice(0, indice).split(/\r?\n/).length - 1;
+        }
+      } catch {
+        /* revelar linha é opcional */
+      }
+      await vscode.commands.executeCommand("vscode.open", uri);
+      if (lineNumber > 0) {
+        await vscode.commands.executeCommand("revealLine", {
+          lineNumber,
+          at: "center",
+        });
+      }
       logLine(
         `sync.jsonc aberto em ${absolutePath} (conexão "${connectionName}").`
       );

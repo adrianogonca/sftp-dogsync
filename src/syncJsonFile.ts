@@ -386,12 +386,12 @@ export async function openSyncJsonFileInEditor(
       fs.writeFileSync(jsoncPath, "{}\n", "utf8");
     }
     const uri = vscode.Uri.file(jsoncPath);
-    const documento = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(documento, {
-      viewColumn: vscode.ViewColumn.Active,
-      preview: false,
-      preserveFocus: false,
-    });
+    /**
+     * Usar `vscode.open` em vez de `openTextDocument`: no Cursor, openTextDocument
+     * pode falhar com "Documents above the size limit cannot be synchronized with
+     * extensions" mesmo em ficheiros pequenos (ex.: sync.jsonc ~10 KiB).
+     */
+    await vscode.commands.executeCommand("vscode.open", uri);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(
