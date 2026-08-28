@@ -367,34 +367,35 @@ export function upsertConnectionInRoot(
 export async function openSyncJsonFileInEditor(
   workspaceFolder: vscode.WorkspaceFolder
 ): Promise<void> {
-  ensureVsCodeFolder(workspaceFolder);
-  const jsoncPath = syncJsonAbsolutePath(workspaceFolder);
-  const legacyPath = legacySyncJsonAbsolutePath(workspaceFolder);
-  if (!fs.existsSync(jsoncPath) && fs.existsSync(legacyPath)) {
-    try {
-      fs.copyFileSync(legacyPath, jsoncPath);
-      fs.unlinkSync(legacyPath);
-    } catch {
-      void vscode.window.showErrorMessage(
-        "Não foi possível migrar sync.json para sync.jsonc."
-      );
-      return;
-    }
-  }
-  if (!fs.existsSync(jsoncPath)) {
-    fs.writeFileSync(jsoncPath, "{}\n", "utf8");
-  }
-  const uri = vscode.Uri.file(jsoncPath);
-  await new Promise<void>((resolver) => setTimeout(resolver, 150));
   try {
+    ensureVsCodeFolder(workspaceFolder);
+    const jsoncPath = syncJsonAbsolutePath(workspaceFolder);
+    const legacyPath = legacySyncJsonAbsolutePath(workspaceFolder);
+    if (!fs.existsSync(jsoncPath) && fs.existsSync(legacyPath)) {
+      try {
+        fs.copyFileSync(legacyPath, jsoncPath);
+        fs.unlinkSync(legacyPath);
+      } catch {
+        void vscode.window.showErrorMessage(
+          "Não foi possível migrar sync.json para sync.jsonc."
+        );
+        return;
+      }
+    }
+    if (!fs.existsSync(jsoncPath)) {
+      fs.writeFileSync(jsoncPath, "{}\n", "utf8");
+    }
+    const uri = vscode.Uri.file(jsoncPath);
     const documento = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(documento, {
-      viewColumn: vscode.ViewColumn.One,
+      viewColumn: vscode.ViewColumn.Active,
       preview: false,
+      preserveFocus: false,
     });
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(
-      `Não foi possível abrir .vscode/${SYNC_FILE_NAME}.`
+      `Não foi possível abrir .vscode/${SYNC_FILE_NAME}: ${detail}`
     );
   }
 }

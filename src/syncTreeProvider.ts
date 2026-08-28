@@ -40,7 +40,10 @@ import {
   moveConnectionToFirstInSyncRoot,
   removeConnectionFromSyncJsonRootOnDisk,
 } from "./syncJsonFile";
-import { getPrimaryWorkspaceFolder } from "./workspaceFolderResolver";
+import {
+  resolveWorkspaceFolder,
+  getPrimaryWorkspaceFolder,
+} from "./workspaceFolderResolver";
 import { markConfigurationIntroCompleted } from "./configurationIntro";
 
 export const TREE_VIEW_ID = "sftpSync.mainPanel";
@@ -138,13 +141,19 @@ export class SyncTreeProvider
       return Promise.resolve([
         new SyncTreeItem("Nova conexão", "action", {
           icon: new vscode.ThemeIcon("add"),
-          comando: { command: "sftpSync.addConnection", title: "" },
+          comando: {
+            command: "sftpSync.addConnection",
+            title: "DogSync: Adicionar conexão",
+          },
           contextValue: "acoes",
           tooltip: "Criar nova entrada em .vscode/sync.jsonc",
         }),
         new SyncTreeItem("Abrir sync.jsonc", "action", {
           icon: new vscode.ThemeIcon("file-code"),
-          comando: { command: "sftpSync.openSyncJson", title: "" },
+          comando: {
+            command: "sftpSync.openSyncJson",
+            title: "DogSync: Abrir sync.jsonc",
+          },
           contextValue: "acoes",
           tooltip: "Editar configuração no editor",
         }),
@@ -180,13 +189,19 @@ export class SyncTreeProvider
     const itens: SyncTreeItem[] = [
       new SyncTreeItem("Nova conexão", "action", {
         icon: new vscode.ThemeIcon("add"),
-        comando: { command: "sftpSync.addConnection", title: "" },
+        comando: {
+          command: "sftpSync.addConnection",
+          title: "DogSync: Adicionar conexão",
+        },
         contextValue: "acoes",
         tooltip: "Criar nova entrada em .vscode/sync.jsonc",
       }),
       new SyncTreeItem("Abrir sync.jsonc", "action", {
         icon: new vscode.ThemeIcon("file-code"),
-        comando: { command: "sftpSync.openSyncJson", title: "" },
+        comando: {
+          command: "sftpSync.openSyncJson",
+          title: "DogSync: Abrir sync.jsonc",
+        },
         contextValue: "acoes",
         tooltip: "Editar configuração no editor",
       }),
@@ -524,18 +539,23 @@ export class SyncTreeProvider
   }
 
   async openSyncJsonc(): Promise<void> {
-    const folder = getPrimaryWorkspaceFolder();
+    const folder =
+      resolveWorkspaceFolder(vscode.window.activeTextEditor?.document.uri) ??
+      getPrimaryWorkspaceFolder();
     if (!folder) {
       void vscode.window.showErrorMessage(
         "Abra uma pasta no espaço de trabalho."
       );
       return;
     }
+    logLine(`A abrir sync.jsonc em: ${folder.uri.fsPath}`);
     await openSyncJsonFileInEditor(folder);
   }
 
   async setDefaultConnection(connectionName: string): Promise<void> {
-    const folder = getPrimaryWorkspaceFolder();
+    const folder =
+      resolveWorkspaceFolder(vscode.window.activeTextEditor?.document.uri) ??
+      getPrimaryWorkspaceFolder();
     const name = connectionName.trim();
     if (!folder || name.length === 0) {
       return;
@@ -548,21 +568,38 @@ export class SyncTreeProvider
   }
 
   async openSyncJsoncAtConnection(connectionName: string): Promise<void> {
-    const folder = getPrimaryWorkspaceFolder();
+    const folder =
+      resolveWorkspaceFolder(vscode.window.activeTextEditor?.document.uri) ??
+      getPrimaryWorkspaceFolder();
     if (!folder) {
+      void vscode.window.showErrorMessage(
+        "Abra uma pasta no espaço de trabalho."
+      );
       return;
     }
-    const uri = vscode.Uri.file(syncJsonAbsolutePath(folder));
-    const doc = await vscode.workspace.openTextDocument(uri);
-    const text = doc.getText();
-    const indice = text.indexOf(`"${connectionName}"`);
-    const posicao =
-      indice >= 0 ? doc.positionAt(indice) : new vscode.Position(0, 0);
-    await vscode.window.showTextDocument(doc, {
-      viewColumn: vscode.ViewColumn.One,
-      selection: new vscode.Range(posicao, posicao),
-      preview: false,
-    });
+    const absolutePath = syncJsonAbsolutePath(folder);
+    const uri = vscode.Uri.file(absolutePath);
+    try {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      const text = doc.getText();
+      const indice = text.indexOf(`"${connectionName}"`);
+      const posicao =
+        indice >= 0 ? doc.positionAt(indice) : new vscode.Position(0, 0);
+      await vscode.window.showTextDocument(doc, {
+        viewColumn: vscode.ViewColumn.Active,
+        selection: new vscode.Range(posicao, posicao),
+        preview: false,
+        preserveFocus: false,
+      });
+      logLine(
+        `sync.jsonc aberto em ${absolutePath} (conexão "${connectionName}").`
+      );
+    } catch (error) {
+      logError(`Abrir sync.jsonc (${absolutePath})`, error);
+      void vscode.window.showErrorMessage(
+        `Não foi possível abrir .vscode/sync.jsonc em ${folder.name}.`
+      );
+    }
   }
 
   /**

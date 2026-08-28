@@ -191,7 +191,12 @@ function activateExtension(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("sftpSync.openSyncJson", () => {
-      void treeProvider.openSyncJsonc();
+      void treeProvider.openSyncJsonc().catch((error) => {
+        logError("Abrir sync.jsonc", error);
+        void vscode.window.showErrorMessage(
+          "DogSync: falha ao abrir sync.jsonc. Veja o registo."
+        );
+      });
     })
   );
 
@@ -259,7 +264,7 @@ function activateExtension(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "sftpSync.openSyncJsonEmConexao",
+      "sftpSync.openSyncJsonAtConnection",
       (arg: vscode.TreeItem) => {
         const name = arg?.id && typeof arg.id === "string" ? arg.id : "";
         if (name) {
