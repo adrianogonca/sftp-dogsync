@@ -2,7 +2,7 @@
   "name": "sftp-sync-vps",
   "displayName": "DogSync",
   "description": "SFTP (SSH) and FTP/FTPS sync for VS Code and Cursor — upload on save, ignores, path mapping, and manual download.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "adrianogonca",
   "license": "MIT",
   "repository": {

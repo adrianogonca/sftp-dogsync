@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { readSettingWithFallback, SETTING_ENABLED } from "./configAliases";
+import { normalizeRemotePosixPath } from "./paths";
 import {
   readSyncJsonStructureFromDisk,
   readSyncJsonRootFromDisk,
@@ -35,14 +36,6 @@ export interface SftpConfiguration {
   readonly useSshAgent: boolean;
   readonly strictHostKeyChecking: boolean;
   readonly knownHostsPath: string;
-}
-
-function normalizeRemoteSlash(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return "";
-  }
-  return trimmed.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
 /**
@@ -88,7 +81,7 @@ function parametersToConfiguration(
 ): SftpConfiguration {
   const protocol: RemoteProtocol =
     parameters.protocol === "ftp" ? "ftp" : "sftp";
-  let remoteRoot = normalizeRemoteSlash(parameters.remoteRoot);
+  let remoteRoot = normalizeRemotePosixPath(parameters.remoteRoot);
   if (protocol === "ftp" && remoteRoot.length === 0) {
     remoteRoot = "/";
   }
